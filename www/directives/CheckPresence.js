@@ -20,37 +20,42 @@
  */
 
 angular.module('News').directive('checkPresence',
-    ['$location', '$timeout', 'LoginService', 'ExceptionsService',
-        function ($location, $timeout, LoginService, ExceptionsService) {
-            return {
-                restrict:"E",
-                link:function tick() {
-                    if (LoginService.timerRef) {
-                        LoginService.killTimer();
-                    }
-                    if (!LoginService.present) {
-                        $location.path('/login');
-                    }
-                    else {
-                        LoginService.login()
-                            .success(function (data, status) {
-                                if (status === 200) {
-                                    $location.path('/');
-                                }
-                                else {
-                                    LoginService.killTimer();
-                                    $location.path('/login');
-                                    ExceptionsService.makeNewException(data, status);
-                                }
-                            })
-                            .error(function (data, status) {
-                                LoginService.killTimer();
-                                $location.path('/login');
-                                ExceptionsService.makeNewException(data, status);
-                            });
-                    }
-                    LoginService.startTimer(tick);
+    ['$timeout', '$rootScope',
+        function ($timeout, $rootScope) {
+
+            var timerRef = null;
+            var timeout = null;
+            var name = null;
+
+            var startTimer = function(){
+                if (timerRef) {
+                    $timeout.cancel(timerRef);
+                }
+
+                timerRef = $timeout(function(){
+                    //console.log('timer '+ new Date().toLocaleTimeString());
+                    //console.log(name);
+                    $rootScope.$broadcast('timerEnd', name);
+                    startTimer();
+                }, timeout);
+            };
+
+            var directive = {
+                restrict:'E',
+                link:function (scope, element, attrs) {
+                    attrs.$observe('timeout', function(){
+                        timeout = attrs.timeout;
+
+                    });
+
+                    attrs.$observe('timeout', function(){
+                        name = attrs.name;
+                    });
+
+                    startTimer();
                 }
             };
+            return directive;
+
         }]);
 

@@ -20,8 +20,8 @@
  */
 
 angular.module('News').controller('MainController',
-    ['$scope', '$location', 'LoginService', 'ItemsService', 'FoldersService', 'FeedsService',
-        function ($scope, $location, LoginService, ItemsService, FoldersService, FeedsService) {
+    ['$scope', '$location', 'LoginService', 'ItemsService', 'FoldersService', 'FeedsService', 'ExceptionsService',
+        function ($scope, $location, LoginService, ItemsService, FoldersService, FeedsService, ExceptionsService) {
 
             $scope.view = 'Loading'; // view is way the results are presented, all and starred is equal
             $scope.action = ''; // action is button pressed to get the populated list
@@ -29,6 +29,9 @@ angular.module('News').controller('MainController',
             $scope.feedId = '0';
             $scope.currentFolderName = '';
             $scope.currentFeedTitle = '';
+
+            $scope.timeout = LoginService.timeout;
+
 
             $scope.moreArticles = true;
             var articlesGet = 0;
@@ -179,12 +182,29 @@ angular.module('News').controller('MainController',
             $scope.logOut = function () {
                 LoginService.present = false;
                 LoginService.killTimer();
-                $location.path('#/login');
+                $location.path('/login');
             };
 
             if (LoginService.present) {
                 $scope.getAll(0);
+            } else {
+                $scope.logOut();
             }
+
+            $scope.$on('timerEnd', function(event, message){
+                if(LoginService.present) {
+                    LoginService.logIn()
+                        .success(function (data, status) {
+                            if (status != 200) {
+                                $scope.logOut();
+                            }
+                        }).error(function (data, status) {
+                            $scope.logOut();
+                        });
+                } else {
+                    $scope.logOut();
+                }
+            });
 
         }]);
 

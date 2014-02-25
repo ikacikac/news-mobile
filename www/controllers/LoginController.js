@@ -50,7 +50,7 @@ angular.module('News').controller('LoginController',
 
             $scope.logIn = function () {
                 if ($scope.testFormFields()) {
-                    LoginService.login()
+                    LoginService.logIn()
                         .success(function (data, status) {
                             if (status === 200) {
                                 UserService.storeToStorage();

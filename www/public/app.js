@@ -88,7 +88,7 @@ angular.module('News').controller('LoginController',
 
             $scope.logIn = function () {
                 if ($scope.testFormFields()) {
-                    LoginService.login()
+                    LoginService.logIn()
                         .success(function (data, status) {
                             if (status === 200) {
                                 UserService.storeToStorage();
@@ -111,8 +111,8 @@ angular.module('News').controller('LoginController',
         }]);
 
 angular.module('News').controller('MainController',
-    ['$scope', '$location', 'LoginService', 'ItemsService', 'FoldersService', 'FeedsService',
-        function ($scope, $location, LoginService, ItemsService, FoldersService, FeedsService) {
+    ['$scope', '$location', 'LoginService', 'ItemsService', 'FoldersService', 'FeedsService', 'ExceptionsService',
+        function ($scope, $location, LoginService, ItemsService, FoldersService, FeedsService, ExceptionsService) {
 
             $scope.view = 'Loading'; // view is way the results are presented, all and starred is equal
             $scope.action = ''; // action is button pressed to get the populated list
@@ -120,6 +120,9 @@ angular.module('News').controller('MainController',
             $scope.feedId = '0';
             $scope.currentFolderName = '';
             $scope.currentFeedTitle = '';
+
+            $scope.timeout = LoginService.timeout;
+
 
             $scope.moreArticles = true;
             var articlesGet = 0;
@@ -270,50 +273,72 @@ angular.module('News').controller('MainController',
             $scope.logOut = function () {
                 LoginService.present = false;
                 LoginService.killTimer();
-                $location.path('#/login');
+                $location.path('/login');
             };
 
             if (LoginService.present) {
                 $scope.getAll(0);
+            } else {
+                $scope.logOut();
             }
+
+            $scope.$on('timerEnd', function(event, message){
+                if(LoginService.present) {
+                    LoginService.logIn()
+                        .success(function (data, status) {
+                            if (status != 200) {
+                                $scope.logOut();
+                            }
+                        }).error(function (data, status) {
+                            $scope.logOut();
+                        });
+                } else {
+                    $scope.logOut();
+                }
+            });
 
         }]);
 
 
 
 angular.module('News').directive('checkPresence',
-    ['$location', '$timeout', 'LoginService', 'ExceptionsService',
-        function ($location, $timeout, LoginService, ExceptionsService) {
-            return {
-                restrict:"E",
-                link:function tick() {
-                    if (LoginService.timerRef) {
-                        LoginService.killTimer();
-                    }
-                    if (!LoginService.present) {
-                        $location.path('/login');
-                    }
-                    else {
-                        LoginService.login()
-                            .success(function (data, status) {
-                                if (status === 200) {
-                                    $location.path('/');
-                                }
-                                else {
-                                    LoginService.killTimer();
-                                    $location.path('/login');
-                                    ExceptionsService.makeNewException(data, status);
-                                }
-                            })
-                            .error(function (data, status) {
-                                LoginService.killTimer();
-                                $location.path('/login');
-                                ExceptionsService.makeNewException(data, status);
-                            });
-                    }
-                    LoginService.startTimer(tick);
+    ['$timeout', '$rootScope',
+        function ($timeout, $rootScope) {
+
+            var timerRef = null;
+            var timeout = null;
+            var name = null;
+
+            var startTimer = function(){
+                if (timerRef) {
+                    $timeout.cancel(timerRef);
+                }
+
+                timerRef = $timeout(function(){
+                    //console.log('timer '+ new Date().toLocaleTimeString());
+                    //console.log(name);
+                    $rootScope.$broadcast('timerEnd', name);
+                    startTimer();
+                }, timeout);
+            };
+
+            var directive = {
+                restrict:'E',
+                link:function (scope, element, attrs) {
+                    attrs.$observe('timeout', function(){
+                        timeout = attrs.timeout;
+
+                    });
+
+                    attrs.$observe('timeout', function(){
+                        name = attrs.name;
+                    });
+
+                    startTimer();
                 }
             };
+            return directive;
+
         }]);
 
 
@@ -708,21 +733,18 @@ angular.module('News').factory('LoginService',
             return {
                 present:false,
                 timerRef:null,
-                timeout:60000,
-
-                startTimer:function (tick) {
-                    this.timerRef = $timeout(tick, this.timeout);
-                },
-
-                killTimer:function () {
-                    $timeout.cancel(this.timerRef);
-                },
+                timeout:10000,
 
                 isPresent:function () {
                     return this.present;
                 },
 
-                login:function () {
+                killTimer:function(){
+                    $timeout.cancel(this.timerRef);
+                    this.timerRef = null;
+                },
+
+                logIn:function () {
                     var auth = "Basic " + btoa(UserService.userName + ":" +
                         UserService.password);
 
